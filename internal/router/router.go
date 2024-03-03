@@ -1,18 +1,25 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
+	orderservice "github.com/ShvetsovYura/oygophermart/internal/services/order_service"
 	"github.com/go-chi/chi/v5"
 )
 
+type OrderCreater interface {
+	CreateOrder(ctx context.Context, userLogin string, orderId string) error
+}
+
 type HTTPRouter struct {
-	data      any
+	service   OrderCreater
 	rawRouter *chi.Mux
 }
 
-func NewHTTPRouter() *HTTPRouter {
-	api := &HTTPRouter{data: "data"}
+func NewHTTPRouter(service OrderCreater) *HTTPRouter {
+	api := &HTTPRouter{service: service}
 	return api
 }
 
@@ -45,7 +52,17 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	err := wa.service.CreateOrder(r.Context(), "pipa", "q2313")
+	if err != nil {
+		if errors.Is(err, orderservice.ErrOrderAlreadyAddedByUser) {
+			w.WriteHeader(http.StatusOK)
+		}
+		if errors.Is(err, orderservice.ErrOrderAlreadyAddedByAnotherUser) {
+			w.WriteHeader(http.StatusConflict)
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
