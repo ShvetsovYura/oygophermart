@@ -1,0 +1,22 @@
+package order_test
+
+import (
+	"testing"
+
+	"github.com/ShvetsovYura/oygophermart/internal/models"
+	"github.com/ShvetsovYura/oygophermart/internal/services/order"
+	"github.com/ShvetsovYura/oygophermart/mocks"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGetUserOrders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := mocks.NewMockOrderStorer(ctrl)
+	m.EXPECT().GetUserOrders("pipa").Return([]models.LoyaltyOrderModel{})
+	s := order.NewOrderService(m)
+	orders := s.GetUserOrders("pipa")
+	require.Equal(t, orders, []models.LoyaltyOrderModel{})
+}

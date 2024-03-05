@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ShvetsovYura/oygophermart/internal/router"
-	orderservice "github.com/ShvetsovYura/oygophermart/internal/services/order_service"
+	"github.com/ShvetsovYura/oygophermart/internal/services"
 	"github.com/ShvetsovYura/oygophermart/internal/store"
 )
 
@@ -18,7 +18,7 @@ func NewWebServer() *WebServer {
 
 	dbStore, _ := store.NewStore(DSN)
 
-	service := orderservice.NewOrderService(dbStore)
+	service := services.NewOrderService(dbStore)
 	router := router.NewHTTPRouter(service)
 	s := &WebServer{
 		router: router,
