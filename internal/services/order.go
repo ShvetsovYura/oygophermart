@@ -10,10 +10,12 @@ import (
 
 var ErrOrderAlreadyAddedByUser = errors.New("the order has already been added by the user")
 var ErrOrderAlreadyAddedByAnotherUser = errors.New("the order has already been added by another user")
+var ErrInsufficientFunds = errors.New("insufficient funds")
+var ErrUserNotFound = errors.New("user not found")
 
 type OrderStorer interface {
 	GetUserByLogin(ctx context.Context, userLogin string) (*models.UserModel, error)
-	GetUserOrders(ctx context.Context, login string) ([]models.LoyaltyOrderModel, error)
+	GetUserOrders(ctx context.Context, login string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error)
 	GetOrdersById(ctx context.Context, orderId string) ([]models.LoyaltyOrderModel, error)
 	AddNewOrder(ctx context.Context, userId int64, orderId string, type_ string, value int64) error
 	GetOrdersByIdAndLogin(ctx context.Context, orderId string, login string, type_ string) ([]models.LoyaltyOrderModel, error)
@@ -60,7 +62,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, userLogin string, orderI
 }
 
 func (s *OrderService) GetUserOrders(ctx context.Context, userLogin string) ([]models.LoyaltyOrderModel, error) {
-	records, err := s.store.GetUserOrders(ctx, userLogin)
+	records, err := s.store.GetUserOrders(ctx, userLogin, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +80,12 @@ func (s *OrderService) Withdraw(ctx context.Context, login string, orderId strin
 		return err
 	}
 	if user == nil {
-		return fmt.Errorf("User not found")
+		return ErrInsufficientFunds
 	}
 
 	balance := s.store.GetUserBalance(ctx, login)
 	if (balance.Balance - value) < 0 {
-		return fmt.Errorf("insufficient funds")
+		return ErrInsufficientFunds
 	}
 
 	err = s.store.Withdraw(ctx, orderId, user.Id, value)
@@ -93,4 +95,15 @@ func (s *OrderService) Withdraw(ctx context.Context, login string, orderId strin
 
 	return nil
 
+}
+
+func (s *OrderService) UserWithdrawals(ctx context.Context, login string) ([]models.LoyaltyOrderModel, error) {
+	status := "PROCESSED"
+	type_ := "WITHDRAWAL"
+	orders, err := s.store.GetUserOrders(ctx, login, &status, &type_)
+	if err != nil {
+		return nil, err
+	}
+
+	return orders, nil
 }

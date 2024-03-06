@@ -66,16 +66,22 @@ func (s *Store) GetOrdersById(ctx context.Context, orderId string) ([]models.Loy
 	return entities, nil
 }
 
-func (s *Store) GetUserOrders(ctx context.Context, userLogin string) ([]models.LoyaltyOrderModel, error) {
+func (s *Store) GetUserOrders(ctx context.Context, userLogin string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error) {
 	var entities []models.LoyaltyOrderModel
-	stmt, args, err := sq.Select("id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
+	query := sq.Select("loyalty_order.id as id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
 		From(loyalityOrderTbl).
 		Join(`"user" on "user"."id"=loyalty_order.user_id`).
 		Where(sq.Eq{"login": userLogin}).
 		OrderBy("updated_at desc").
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
+		PlaceholderFormat(sq.Dollar)
 
+	if orderStatus != nil {
+		query = query.Where(sq.Eq{"status": *orderStatus})
+	}
+	if orderType != nil {
+		query = query.Where(sq.Eq{"type": *orderType})
+	}
+	stmt, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
 	}

@@ -16,8 +16,8 @@ type OrderCreater interface {
 	CreateOrder(ctx context.Context, userLogin string, orderId string) error
 	GetUserBalance(ctx context.Context, login string) models.BalanceModel
 	Withdraw(ctx context.Context, login string, orderId string, value int64) error
+	UserWithdrawals(ctx context.Context, login string) ([]models.LoyaltyOrderModel, error)
 }
-
 type HTTPRouter struct {
 	service   OrderCreater
 	rawRouter *chi.Mux
@@ -119,5 +119,28 @@ func (wa *HTTPRouter) userWithdrawBalance(w http.ResponseWriter, r *http.Request
 }
 
 func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
+	orders, err := wa.service.UserWithdrawals(r.Context(), "pipa")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	var respOrders = make([]models.UserWithdrawalsResp, 0, len(orders))
+	for _, o := range orders {
+		respOrders = append(respOrders, models.UserWithdrawalsResp{
+			OrderId:     o.OrderId,
+			Sum:         o.Value,
+			ProcessedAt: o.UpdatedAt,
+		})
+	}
+	resp, err := json.Marshal(respOrders)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(resp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
