@@ -1,8 +1,16 @@
 package main
 
-import "github.com/ShvetsovYura/oygophermart/internal/webserver"
+import (
+	"fmt"
+
+	"github.com/ShvetsovYura/oygophermart/internal/webserver"
+)
 
 func main() {
-	ws := webserver.NewWebServer()
+	ws, err := webserver.NewWebServer()
+	if err != nil {
+		fmt.Printf("%e", err)
+		return
+	}
 	ws.Start()
 }
