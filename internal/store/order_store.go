@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Store struct {
+type OrderStore struct {
 	db *pgxpool.Pool
 }
 
@@ -17,23 +17,17 @@ const (
 	userTbl          = "user"
 )
 
-func NewStore(connString string) (*Store, error) {
-	conn, err := pgxpool.New(context.Background(), connString)
-	if err != nil {
-		return nil, err
-	}
+func NewOrderStore(conn *pgxpool.Pool) (*OrderStore, error) {
 
-	store := &Store{
-		db: conn,
-	}
-	err = store.Ping(context.TODO())
+	store := &OrderStore{db: conn}
+	err := store.Ping(context.TODO())
 	if err != nil {
 		return nil, err
 	}
 	return store, nil
 }
 
-func (s *Store) Ping(ctx context.Context) error {
+func (s *OrderStore) Ping(ctx context.Context) error {
 	err := s.db.Ping(ctx)
 	if err != nil {
 		return err
@@ -41,7 +35,7 @@ func (s *Store) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) GetOrdersById(ctx context.Context, orderId string) ([]models.LoyaltyOrderModel, error) {
+func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]models.LoyaltyOrderModel, error) {
 	var entities []models.LoyaltyOrderModel
 	stmt, args, err := sq.Select("id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
 		From(loyalityOrderTbl).
@@ -66,7 +60,7 @@ func (s *Store) GetOrdersById(ctx context.Context, orderId string) ([]models.Loy
 	return entities, nil
 }
 
-func (s *Store) GetUserOrders(ctx context.Context, userLogin string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error) {
+func (s *OrderStore) GetUserOrders(ctx context.Context, userLogin string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error) {
 	var entities []models.LoyaltyOrderModel
 	query := sq.Select("loyalty_order.id as id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
 		From(loyalityOrderTbl).
@@ -99,21 +93,7 @@ func (s *Store) GetUserOrders(ctx context.Context, userLogin string, orderStatus
 	return entities, nil
 }
 
-func (s *Store) GetUserByLogin(ctx context.Context, userLogin string) (*models.UserModel, error) {
-	stmt, args, _ := sq.Select(`"id"`, "login", "pwd_hash").
-		From(`"user"`).
-		Where(sq.Eq{"login": userLogin}).
-		PlaceholderFormat(sq.Dollar).ToSql()
-	row := s.db.QueryRow(ctx, stmt, args...)
-	var u models.UserModel
-	err := row.Scan(&u.Id, &u.Login, &u.PwdHash)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
-
-}
-func (s *Store) AddNewOrder(ctx context.Context, userId int64, orderId string, type_ string, value int64) error {
+func (s *OrderStore) AddNewOrder(ctx context.Context, userId int64, orderId string, type_ string, value int64) error {
 	stmt, args, _ := sq.Insert("loyalty_order").
 		Columns("order_id", "type", "status", "value", "user_id").
 		Values(orderId, type_, "NEW", value, userId).
@@ -126,7 +106,7 @@ func (s *Store) AddNewOrder(ctx context.Context, userId int64, orderId string, t
 	return nil
 }
 
-func (s *Store) GetOrdersByIdAndLogin(ctx context.Context, orderId string, login string, type_ string) ([]models.LoyaltyOrderModel, error) {
+func (s *OrderStore) GetOrdersByIdAndLogin(ctx context.Context, orderId string, login string, type_ string) ([]models.LoyaltyOrderModel, error) {
 	var entities []models.LoyaltyOrderModel
 	stmt, args, err := sq.Select("id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
 		From("loaylty_order lo").
@@ -156,7 +136,7 @@ func (s *Store) GetOrdersByIdAndLogin(ctx context.Context, orderId string, login
 	return entities, nil
 }
 
-func (s *Store) GetUserBalance(ctx context.Context, login string) models.BalanceModel {
+func (s *OrderStore) GetUserBalance(ctx context.Context, login string) models.BalanceModel {
 	var m models.BalanceModel
 	stmt := `
 		with orders as (
@@ -173,7 +153,7 @@ func (s *Store) GetUserBalance(ctx context.Context, login string) models.Balance
 	return m
 }
 
-func (s *Store) Withdraw(ctx context.Context, orderId string, userId int64, value int64) error {
+func (s *OrderStore) Withdraw(ctx context.Context, orderId string, userId int64, value int64) error {
 	stmt := `
 		insert into loyalty_order(order_id, user_id, "type", status, value)
 		values ($1, $2, 'WITHDRAWAL', 'PROCESSED', $3)
