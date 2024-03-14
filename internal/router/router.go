@@ -9,6 +9,7 @@ import (
 
 	"github.com/ShvetsovYura/oygophermart/internal/models"
 	"github.com/ShvetsovYura/oygophermart/internal/services"
+	"github.com/ShvetsovYura/oygophermart/internal/utils"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -141,7 +142,29 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	err := wa.orderService.CreateOrder(r.Context(), "pipa", "q2313")
+	// var body []byte
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "text/plain" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	defer r.Body.Close()
+	orderId := string(body)
+	isValid, err := utils.CheckLuhnFromStr(orderId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !isValid {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	err = wa.orderService.CreateOrder(r.Context(), "pipa", orderId)
 	if err != nil {
 		if errors.Is(err, services.ErrOrderAlreadyAddedByUser) {
 			w.WriteHeader(http.StatusOK)
