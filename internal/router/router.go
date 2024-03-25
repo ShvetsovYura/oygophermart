@@ -159,7 +159,7 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value(models.UIDKey).(uint64)
 
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "text/plain" {
@@ -202,7 +202,7 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value(models.UIDKey).(uint64)
 	w.Header().Add("Content-Type", "application/json")
 	orders, err := wa.orderService.GetUserOrders(r.Context(), userID)
 	if err != nil {
@@ -224,10 +224,10 @@ func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("uid")
+	userID := r.Context().Value(models.UIDKey).(uint64)
 	w.Header().Add("Content-Type", "application/json")
 
-	balance := wa.orderService.GetUserBalance(r.Context(), userID.(uint64))
+	balance := wa.orderService.GetUserBalance(r.Context(), userID)
 	balanceResp := models.BalanceResp{
 		Current:   balance.Balance,
 		Withdrawn: math.Abs(balance.Withdrawn),
@@ -247,7 +247,7 @@ func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value(models.UIDKey).(uint64)
 	var req models.WithdrawReq
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -265,7 +265,7 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 
 	logger.Log.Debugf("withdraw req: %v", req)
 
-	isValid, err := utils.CheckLuhnFromStr(req.OrderId)
+	isValid, err := utils.CheckLuhnFromStr(req.OrderID)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -274,7 +274,7 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
-	err = wa.orderService.Withdraw(r.Context(), userID, req.OrderId, float64(req.Sum))
+	err = wa.orderService.Withdraw(r.Context(), userID, req.OrderID, float64(req.Sum))
 	if err != nil {
 		logger.Log.Debugf("err ubu : %e", err)
 		if errors.Is(err, store.ErrOrderAlreadyExistsInDB) {
@@ -287,7 +287,7 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value(models.UIDKey).(uint64)
 	w.Header().Add("Content-Type", "application/json")
 	orders, err := wa.orderService.UserWithdrawals(r.Context(), userID)
 	if err != nil {
@@ -302,7 +302,7 @@ func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
 	var respOrders = make([]models.UserWithdrawalsResp, 0, len(orders))
 	for _, o := range orders {
 		respOrders = append(respOrders, models.UserWithdrawalsResp{
-			OrderId:     o.ID,
+			OrderID:     o.ID,
 			Sum:         math.Abs(*o.Accrual),
 			ProcessedAt: o.UpdatedAt,
 		})

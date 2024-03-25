@@ -110,7 +110,7 @@ func (a *AccrualAgent) getAccrualInfoTick() {
 
 	// отправка заказов в канал -
 	for _, order := range dbOrders {
-		ordersToCheckCh <- order.Id
+		ordersToCheckCh <- order.ID
 	}
 	close(ordersToCheckCh)
 }

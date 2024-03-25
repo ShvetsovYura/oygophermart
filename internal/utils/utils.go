@@ -50,7 +50,7 @@ func CheckLuhn(code []uint8) bool {
 
 func Contains(rec models.AccrualResult, records []models.AccrualResult) bool {
 	for _, r := range records {
-		if r.OrderId == rec.OrderId && r.Status == rec.Status {
+		if r.OrderID == rec.OrderID && r.Status == rec.Status {
 			return true
 		}
 	}

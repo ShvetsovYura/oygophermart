@@ -1,7 +1,7 @@
 package models
 
 type AccrualResult struct {
-	OrderId string   `json:"order"`
+	OrderID string   `json:"order"`
 	Status  string   `json:"status"`
 	Accrual *float64 `json:"accrual,omitempty"`
 }

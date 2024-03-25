@@ -3,6 +3,8 @@ package middlewares
 import (
 	"context"
 	"net/http"
+
+	"github.com/ShvetsovYura/oygophermart/internal/models"
 )
 
 type Extractor interface {
@@ -21,7 +23,7 @@ func ExtractUserID(ex Extractor) func(next http.Handler) http.Handler {
 					http.Error(w, "Unable get user", http.StatusInternalServerError)
 					return
 				}
-				ctx := context.WithValue(r.Context(), "uid", userID)
+				ctx := context.WithValue(r.Context(), models.UIDKey, userID)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			} else {
 				http.Error(w, "Unable get cookies", http.StatusBadRequest)

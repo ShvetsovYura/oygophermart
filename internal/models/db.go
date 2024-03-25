@@ -3,7 +3,7 @@ package models
 import "time"
 
 type OrderModel struct {
-	Id         string
+	ID         string
 	UserID     uint64
 	Status     string
 	CreateedAt time.Time
@@ -11,7 +11,7 @@ type OrderModel struct {
 }
 
 type LoyaltyOrderModel struct {
-	Id        int
+	ID        int
 	OrderID   string
 	Status    string
 	Value     int64

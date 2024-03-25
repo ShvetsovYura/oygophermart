@@ -55,7 +55,7 @@ func (s *OrderStore) GetOrdersByID(ctx context.Context, orderID string) ([]model
 
 	for rows.Next() {
 		var m models.OrderModel
-		rows.Scan(&m.Id, &m.Status, &m.UserID, &m.CreateedAt, &m.UpdatedAt)
+		rows.Scan(&m.ID, &m.Status, &m.UserID, &m.CreateedAt, &m.UpdatedAt)
 		entities = append(entities, m)
 	}
 
@@ -133,7 +133,7 @@ func (s *OrderStore) GetUserOrderByID(ctx context.Context, orderID string, userI
 	`
 
 	row := s.db.QueryRow(ctx, stmt, userID, orderID)
-	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserID, &m.CreatedAt, &m.UpdatedAt)
+	err := row.Scan(&m.ID, &m.Status, &m.Value, &m.UserID, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrOrdersNotFoundInDB
@@ -250,10 +250,10 @@ func (s *OrderStore) UpdateOrdersStatus(ctx context.Context, processRecords ...m
 			// b.Queue(stmtUpdOrder, status, inRecorder_id.OrderId)
 			// for _, o := range orders {
 			// if o.Status != inRec.Status {
-			tx.Exec(ctx, stmtUpdOrder, status, inRec.OrderId)
+			tx.Exec(ctx, stmtUpdOrder, status, inRec.OrderID)
 			if inRec.Accrual != nil {
 				// b.Queue(stmtInsLyalty, inRec.OrderId, inRec.Accrual)
-				tx.Exec(ctx, stmtInsLyalty, inRec.OrderId, *inRec.Accrual)
+				tx.Exec(ctx, stmtInsLyalty, inRec.OrderID, *inRec.Accrual)
 			}
 			// }
 
@@ -285,7 +285,7 @@ func (s *OrderStore) GetOrdersToAccrualProcess(ctx context.Context) ([]models.Or
 
 	for rows.Next() {
 		var m models.OrderModel
-		rows.Scan(&m.Id, &m.UserID, &m.Status, &m.CreateedAt, &m.UpdatedAt)
+		rows.Scan(&m.ID, &m.UserID, &m.Status, &m.CreateedAt, &m.UpdatedAt)
 		records = append(records, m)
 	}
 	return records, nil

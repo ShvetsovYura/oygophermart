@@ -8,7 +8,7 @@ type BalanceResp struct {
 }
 
 type UserWithdrawalsResp struct {
-	OrderId     string    `json:"order"`
+	OrderID     string    `json:"order"`
 	Sum         float64   `json:"sum"`
 	ProcessedAt time.Time `json:"processed_at"`
 }
