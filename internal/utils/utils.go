@@ -3,6 +3,8 @@ package utils
 import (
 	"errors"
 	"strconv"
+
+	"github.com/ShvetsovYura/oygophermart/internal/models"
 )
 
 func CheckLuhnFromStr(code string) (bool, error) {
@@ -44,4 +46,13 @@ func CheckLuhn(code []uint8) bool {
 		sum += int(d1)
 	}
 	return sum%10 == 0
+}
+
+func Contains(rec models.AccrualResult, records []models.AccrualResult) bool {
+	for _, r := range records {
+		if r.OrderId == rec.OrderId && r.Status == rec.Status {
+			return true
+		}
+	}
+	return false
 }

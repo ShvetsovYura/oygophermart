@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/ShvetsovYura/oygophermart/internal/logger"
+	"github.com/ShvetsovYura/oygophermart/internal/options"
 	"github.com/ShvetsovYura/oygophermart/internal/router"
 	"github.com/ShvetsovYura/oygophermart/internal/services"
 	"github.com/ShvetsovYura/oygophermart/internal/store"
@@ -11,21 +13,16 @@ import (
 )
 
 type WebServer struct {
-	router *router.HTTPRouter
+	router  *router.HTTPRouter
+	options *options.AppOptions
 }
 
-const DSN = "postgres://pipa:F,shdfk!@localhost:5432/oy_loyalty?sslmode=disable"
-
-func NewWebServer() (*WebServer, error) {
-	conn, err := pgxpool.New(context.Background(), DSN)
+func NewWebServer(ctx context.Context, dbConn *pgxpool.Pool, opt *options.AppOptions) (*WebServer, error) {
+	orderStore, err := store.NewOrderStore(dbConn)
 	if err != nil {
 		return nil, err
 	}
-	orderStore, err := store.NewOrderStore(conn)
-	if err != nil {
-		return nil, err
-	}
-	userStore, err := store.NewUserStore(conn)
+	userStore, err := store.NewUserStore(dbConn)
 	if err != nil {
 		return nil, err
 	}
@@ -38,11 +35,13 @@ func NewWebServer() (*WebServer, error) {
 	)
 
 	return &WebServer{
-		router: router,
+		router:  router,
+		options: opt,
 	}, nil
 }
 
 func (ws *WebServer) Start() {
 	ws.router.InitRouter()
-	http.ListenAndServe(":3001", ws.router.GetRouter())
+	logger.Log.Debugf("start on: %s", ws.options.RunAddr)
+	http.ListenAndServe(ws.options.RunAddr, ws.router.GetRouter())
 }

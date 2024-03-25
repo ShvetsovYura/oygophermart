@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 
+	"github.com/ShvetsovYura/oygophermart/internal/logger"
 	"github.com/ShvetsovYura/oygophermart/internal/models"
 )
 
@@ -13,12 +13,12 @@ var ErrOrderAlreadyAddedByAnotherUser = errors.New("the order has already been a
 var ErrInsufficientFunds = errors.New("insufficient funds")
 
 type OrderStorer interface {
-	GetUserOrders(ctx context.Context, login string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error)
-	GetOrdersById(ctx context.Context, orderId string) ([]models.LoyaltyOrderModel, error)
-	AddNewOrder(ctx context.Context, userId int64, orderId string, type_ string, value int64) error
-	GetOrdersByIdAndLogin(ctx context.Context, orderId string, login string, type_ string) ([]models.LoyaltyOrderModel, error)
-	GetUserBalance(ctx context.Context, login string) models.BalanceModel
-	Withdraw(ctx context.Context, orderId string, userId int64, value int64) error
+	GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
+	GetOrdersById(ctx context.Context, orderId string) ([]models.OrderModel, error)
+	AddNewOrder(ctx context.Context, userId int64, orderId string) error
+	GetUserOrderById(ctx context.Context, orderId string, userId int64) (*models.LoyaltyOrderModel, error)
+	GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel
+	Withdraw(ctx context.Context, orderId string, userId int64, value float64) error
 }
 
 type stores struct {
@@ -40,64 +40,63 @@ func NewOrderService(orderStore OrderStorer, userStore UserStorer) *OrderService
 	return service
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, userLogin string, orderId string) error {
-	orders, err := s.stores.orderStore.GetOrdersByIdAndLogin(ctx, orderId, userLogin, "ADD")
+func (s *OrderService) CreateOrder(ctx context.Context, userId uint64, orderId string) error {
+	records, err := s.stores.orderStore.GetOrdersById(ctx, orderId)
 	if err != nil {
 		return err
 	}
-
-	if len(orders) > 0 {
-		return fmt.Errorf("%w", ErrOrderAlreadyAddedByUser)
+	if len(records) > 0 {
+		for _, r := range records {
+			if r.UserId == userId {
+				return ErrOrderAlreadyAddedByUser
+			}
+		}
+		return ErrOrderAlreadyAddedByAnotherUser
 	}
 
-	orders, err = s.stores.orderStore.GetOrdersById(ctx, orderId)
-	if err != nil {
-		return err
-	}
-	if len(orders) > 0 {
-		return fmt.Errorf("%w", ErrOrderAlreadyAddedByAnotherUser)
-	}
-
-	user, err := s.stores.userStore.GetUserByLogin(ctx, userLogin)
-	if err != nil {
-		return err
-	}
-	err = s.stores.orderStore.AddNewOrder(ctx, user.Id, orderId, "ADD", 1234)
+	err = s.stores.orderStore.AddNewOrder(ctx, int64(userId), orderId)
 	if err != nil {
 		return err
 	}
 	return nil
+
 }
 
-func (s *OrderService) GetUserOrders(ctx context.Context, userLogin string) ([]models.LoyaltyOrderModel, error) {
-	records, err := s.stores.orderStore.GetUserOrders(ctx, userLogin, nil, nil)
+func (s *OrderService) GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
+	records, err := s.stores.orderStore.GetUserOrders(ctx, userId)
+	var result = make([]models.OrderGroupedModel, 0, len(records))
+
 	if err != nil {
 		return nil, err
 	}
-	return records, nil
+	for _, r := range records {
+		if r.Accrual == nil {
+			result = append(result, r)
+		} else {
+			if *r.Accrual >= 0.0 {
+				result = append(result, r)
+			}
+		}
+	}
+	return result, nil
 }
 
-func (s *OrderService) GetUserBalance(ctx context.Context, login string) models.BalanceModel {
-	record := s.stores.orderStore.GetUserBalance(ctx, login)
+func (s *OrderService) GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel {
+	record := s.stores.orderStore.GetUserBalance(ctx, userId)
 	return record
 }
 
-func (s *OrderService) Withdraw(ctx context.Context, login string, orderId string, value int64) error {
-	user, err := s.stores.userStore.GetUserByLogin(ctx, login)
-	if err != nil {
-		return err
-	}
-	if user == nil {
-		return ErrInsufficientFunds
-	}
-
-	balance := s.stores.orderStore.GetUserBalance(ctx, login)
+func (s *OrderService) Withdraw(ctx context.Context, userId uint64, orderId string, value float64) error {
+	balance := s.stores.orderStore.GetUserBalance(ctx, userId)
+	logger.Log.Debugf("withdraw balance: user %s %s %v", userId, orderId, balance)
 	if (balance.Balance - value) < 0 {
+		logger.Log.Debug("User not funds")
 		return ErrInsufficientFunds
 	}
 
-	err = s.stores.orderStore.Withdraw(ctx, orderId, user.Id, value)
+	err := s.stores.orderStore.Withdraw(ctx, orderId, int64(userId), value)
 	if err != nil {
+		logger.Log.Debugf("err on withdrsw %e", err)
 		return err
 	}
 
@@ -105,13 +104,22 @@ func (s *OrderService) Withdraw(ctx context.Context, login string, orderId strin
 
 }
 
-func (s *OrderService) UserWithdrawals(ctx context.Context, login string) ([]models.LoyaltyOrderModel, error) {
+func (s *OrderService) UserWithdrawals(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
 	status := "PROCESSED"
-	type_ := "WITHDRAWAL"
-	orders, err := s.stores.orderStore.GetUserOrders(ctx, login, &status, &type_)
+	var result = make([]models.OrderGroupedModel, 0)
+	orders, err := s.stores.orderStore.GetUserOrders(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
+	for _, r := range orders {
+		if r.Status == status {
+			if r.Accrual != nil {
+				if *r.Accrual < 0 {
+					result = append(result, r)
+				}
+			}
+		}
+	}
 
-	return orders, nil
+	return result, nil
 }

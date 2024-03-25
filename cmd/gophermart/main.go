@@ -1,16 +1,28 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
 
-	"github.com/ShvetsovYura/oygophermart/internal/webserver"
+	"github.com/ShvetsovYura/oygophermart/internal/app"
+	"github.com/ShvetsovYura/oygophermart/internal/logger"
+	"github.com/ShvetsovYura/oygophermart/internal/options"
 )
 
 func main() {
-	ws, err := webserver.NewWebServer()
+	logger.InitLogger("info")
+
+	opt := options.AppOptions{}
+	opt.ParseArgs()
+	err := opt.ParseEnv()
 	if err != nil {
-		fmt.Printf("%e", err)
-		return
+		fmt.Println(err)
 	}
-	ws.Start()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
+	defer stop()
+
+	app.Run(ctx, &opt)
+	<-ctx.Done()
 }

@@ -5,28 +5,36 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
+	"time"
 
+	"github.com/ShvetsovYura/oygophermart/internal/logger"
+	"github.com/ShvetsovYura/oygophermart/internal/middlewares"
 	"github.com/ShvetsovYura/oygophermart/internal/models"
 	"github.com/ShvetsovYura/oygophermart/internal/services"
+	"github.com/ShvetsovYura/oygophermart/internal/store"
 	"github.com/ShvetsovYura/oygophermart/internal/utils"
 	"github.com/go-chi/chi/v5"
 )
 
 type OrderWorker interface {
-	CreateOrder(ctx context.Context, userLogin string, orderId string) error
-	GetUserBalance(ctx context.Context, login string) models.BalanceModel
-	Withdraw(ctx context.Context, login string, orderId string, value int64) error
-	UserWithdrawals(ctx context.Context, login string) ([]models.LoyaltyOrderModel, error)
+	CreateOrder(ctx context.Context, userId uint64, orderId string) error
+	GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel
+	Withdraw(ctx context.Context, userId uint64, orderId string, value float64) error
+	UserWithdrawals(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
+	GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
 }
 
 type UserWorker interface {
-	CreateUser(ctx context.Context, login string, password string) error
-	Login(ctx context.Context, login string, password string) error
+	CreateUser(ctx context.Context, login string, password string) (int64, error)
+	Login(ctx context.Context, login string, password string) (int64, error)
 }
 
 type Tokener interface {
-	GetToken() (string, error)
+	GenerateToken(id uint64) (string, error)
+	ValidateSign(token string) (bool, error)
+	ExtractUserId(token string) (uint64, error)
 }
 
 type HTTPRouter struct {
@@ -51,21 +59,27 @@ func (wa *HTTPRouter) GetRouter() *chi.Mux {
 
 func (wa *HTTPRouter) InitRouter() {
 	r := chi.NewRouter()
+	ms := []func(http.Handler) http.Handler{
+		middlewares.CheckAuthCookie(wa.tokenService),
+		middlewares.ExtractUserId(wa.tokenService),
+	}
+
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/user", func(r chi.Router) {
 			r.Post("/register", wa.userRegister)
 			r.Post("/login", wa.userLogin)
-			r.Post("/orders", wa.userLoadOrders)
-			r.Get("/orders", wa.userListOrders)
-			r.Get("/balance", wa.userBalance)
-			r.Post("/balance/withdraw", wa.userWithdrawBalance)
-			r.Get("/withdrawals", wa.userWithdrawals)
+			r.With(ms...).Post("/orders", wa.userLoadOrders)
+			r.With(ms...).Get("/orders", wa.userListOrders)
+			r.With(ms...).Get("/balance", wa.userBalance)
+			r.With(ms...).Post("/balance/withdraw", wa.userWithdraw)
+			r.With(ms...).Get("/withdrawals", wa.userWithdrawals)
 		})
 	})
 	wa.rawRouter = r
 }
 
 func (wa *HTTPRouter) userRegister(w http.ResponseWriter, r *http.Request) {
+	// TODO:  Добавить проверку content-type
 	var user models.UserReq
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -81,7 +95,7 @@ func (wa *HTTPRouter) userRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = wa.userService.CreateUser(r.Context(), user.Login, user.Password)
+	id, err := wa.userService.CreateUser(r.Context(), user.Login, user.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrUserAlreadyExists) {
 			w.WriteHeader(http.StatusConflict)
@@ -90,7 +104,7 @@ func (wa *HTTPRouter) userRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	token, err := wa.tokenService.GetToken()
+	token, err := wa.tokenService.GenerateToken(uint64(id))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -101,6 +115,8 @@ func (wa *HTTPRouter) userRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
+	// TODO:  Добавить проверку content-type
+
 	var user models.UserReq
 
 	body, err := io.ReadAll(r.Body)
@@ -116,7 +132,7 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = wa.userService.Login(r.Context(), user.Login, user.Password)
+	uid, err := wa.userService.Login(r.Context(), user.Login, user.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrUserNotFound) || errors.Is(err, services.ErrNotValidLoginOrPassword) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -125,7 +141,7 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	token, err := wa.tokenService.GetToken()
+	token, err := wa.tokenService.GenerateToken(uint64(uid))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -133,7 +149,8 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 	c := http.Cookie{
 		Name:     "token",
 		Value:    token,
-		MaxAge:   3600,
+		MaxAge:   0,
+		Expires:  time.Now().Add(time.Minute * 30),
 		HttpOnly: true,
 	}
 
@@ -142,10 +159,12 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	// var body []byte
+	userId := r.Context().Value("uid").(uint64)
+
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "text/plain" {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusTeapot)
+		logger.Log.Debugf("bad content-type: %s", contentType)
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -160,34 +179,60 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isValid {
-		w.WriteHeader(http.StatusConflict)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
 
-	err = wa.orderService.CreateOrder(r.Context(), "pipa", orderId)
+	err = wa.orderService.CreateOrder(r.Context(), userId, orderId)
 	if err != nil {
+		logger.Log.Debugf("Error on create order, %v", err)
 		if errors.Is(err, services.ErrOrderAlreadyAddedByUser) {
 			w.WriteHeader(http.StatusOK)
+			return
 		}
 		if errors.Is(err, services.ErrOrderAlreadyAddedByAnotherUser) {
 			w.WriteHeader(http.StatusConflict)
+			return
 		}
 		w.WriteHeader(http.StatusBadRequest)
+		logger.Log.Debugf("error on create order: %v", err)
+		return
 	}
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	userId := r.Context().Value("uid").(uint64)
+	w.Header().Add("Content-Type", "application/json")
+	orders, err := wa.orderService.GetUserOrders(r.Context(), userId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(orders) < 1 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	response, err := json.Marshal(orders)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(response)
+	// w.WriteHeader(http.StatusOK)
 }
 
 func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
-	userLogin := "pipa"
-	balance := wa.orderService.GetUserBalance(r.Context(), userLogin)
+	userId := r.Context().Value("uid")
+	w.Header().Add("Content-Type", "application/json")
+
+	balance := wa.orderService.GetUserBalance(r.Context(), userId.(uint64))
 	balanceResp := models.BalanceResp{
-		Current:   float32(balance.Balance),
-		Withdrawn: float32(balance.Withdrawn),
+		Current:   balance.Balance,
+		Withdrawn: math.Abs(balance.Withdrawn),
 	}
+
 	resp, err := json.Marshal(balanceResp)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -198,44 +243,67 @@ func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
-func (wa *HTTPRouter) userWithdrawBalance(w http.ResponseWriter, r *http.Request) {
+func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("uid").(uint64)
 	var req models.WithdrawReq
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		logger.Log.Debugf("err: %e", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer r.Body.Close()
 	err = json.Unmarshal(body, &req)
 	if err != nil {
+		logger.Log.Debugf("err on withdraw: %e", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	// Здесь валидация номера заказа
-	// проверить номер заказа по алгоритму Луна и вывбростиь 422 в случае ошибки валидации
-	err = wa.orderService.Withdraw(r.Context(), "pipa", req.OrderId, req.Sum)
+
+	logger.Log.Debugf("withdraw req: %v", req)
+
+	isValid, err := utils.CheckLuhnFromStr(req.OrderId)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !isValid {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
+	}
+	err = wa.orderService.Withdraw(r.Context(), userId, req.OrderId, float64(req.Sum))
+	if err != nil {
+		logger.Log.Debugf("err ubu : %e", err)
+		if errors.Is(err, store.ErrOrderAlreadyExistsInDb) {
+			http.Error(w, "Order already exists", http.StatusUnprocessableEntity)
+		}
 		w.WriteHeader(http.StatusPaymentRequired)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-
 }
 
 func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
-	orders, err := wa.orderService.UserWithdrawals(r.Context(), "pipa")
+	userId := r.Context().Value("uid").(uint64)
+	w.Header().Add("Content-Type", "application/json")
+	orders, err := wa.orderService.UserWithdrawals(r.Context(), userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if len(orders) < 1 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	var respOrders = make([]models.UserWithdrawalsResp, 0, len(orders))
 	for _, o := range orders {
 		respOrders = append(respOrders, models.UserWithdrawalsResp{
-			OrderId:     o.OrderId,
-			Sum:         o.Value,
+			OrderId:     o.Id,
+			Sum:         math.Abs(*o.Accrual),
 			ProcessedAt: o.UpdatedAt,
 		})
 	}

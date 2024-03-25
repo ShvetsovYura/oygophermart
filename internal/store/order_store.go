@@ -2,23 +2,28 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ShvetsovYura/oygophermart/internal/logger"
 	"github.com/ShvetsovYura/oygophermart/internal/models"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var ErrOrdersNotFoundInDb = errors.New("orders not found")
+var ErrOrderAlreadyExistsInDb = errors.New("order already exists")
+
+const (
+	UniqueViolation = "23505"
 )
 
 type OrderStore struct {
 	db *pgxpool.Pool
 }
 
-const (
-	loyalityOrderTbl = "loyalty_order"
-	userTbl          = "user"
-)
-
 func NewOrderStore(conn *pgxpool.Pool) (*OrderStore, error) {
-
 	store := &OrderStore{db: conn}
 	err := store.Ping(context.TODO())
 	if err != nil {
@@ -35,132 +40,247 @@ func (s *OrderStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]models.LoyaltyOrderModel, error) {
-	var entities []models.LoyaltyOrderModel
-	stmt, args, err := sq.Select("id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
-		From(loyalityOrderTbl).
-		Where(sq.Eq{"order_id": orderId}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
+func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]models.OrderModel, error) {
+	var entities = make([]models.OrderModel, 0)
+	stmt := `
+		select id, status, user_id, created_at, updated_at 
+		from "order" 
+		where id = $1
+	`
 
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, stmt, args...)
+	rows, err := s.db.Query(ctx, stmt, orderId)
 	if err != nil {
 		return nil, err
 	}
 
 	for rows.Next() {
-		var m models.LoyaltyOrderModel
-		rows.Scan(&m.Id, &m.OrderId, &m.Type, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
+		var m models.OrderModel
+		rows.Scan(&m.Id, &m.Status, &m.UserId, &m.CreateedAt, &m.UpdatedAt)
 		entities = append(entities, m)
 	}
 
 	return entities, nil
 }
 
-func (s *OrderStore) GetUserOrders(ctx context.Context, userLogin string, orderStatus *string, orderType *string) ([]models.LoyaltyOrderModel, error) {
-	var entities []models.LoyaltyOrderModel
-	query := sq.Select("loyalty_order.id as id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
-		From(loyalityOrderTbl).
-		Join(`"user" on "user"."id"=loyalty_order.user_id`).
-		Where(sq.Eq{"login": userLogin}).
-		OrderBy("updated_at desc").
-		PlaceholderFormat(sq.Dollar)
+func (s *OrderStore) GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
+	var entities []models.OrderGroupedModel
 
-	if orderStatus != nil {
-		query = query.Where(sq.Eq{"status": *orderStatus})
-	}
-	if orderType != nil {
-		query = query.Where(sq.Eq{"type": *orderType})
-	}
-	stmt, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, stmt, args...)
+	stmt := `
+	SELECT
+		O.ID,
+		O.STATUS,
+		O.UPDATED_AT,
+		SUM("value") as val
+	FROM
+		"order" O
+		LEFT JOIN LOYALTY L ON O.ID = L.ORDER_ID
+	WHERE
+		O.USER_ID = $1
+	GROUP BY
+		O.ID,
+		O.STATUS,
+		O.UPDATED_AT
+	ORDER BY
+		UPDATED_AT ASC;
+	`
+
+	rows, err := s.db.Query(ctx, stmt, userId)
 	if err != nil {
 		return nil, err
 	}
 
 	for rows.Next() {
-		var m models.LoyaltyOrderModel
-		rows.Scan(&m.Id, &m.OrderId, &m.Type, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
+		var m models.OrderGroupedModel
+		rows.Scan(&m.Id, &m.Status, &m.UpdatedAt, &m.Accrual)
 		entities = append(entities, m)
 	}
 
 	return entities, nil
 }
 
-func (s *OrderStore) AddNewOrder(ctx context.Context, userId int64, orderId string, type_ string, value int64) error {
-	stmt, args, _ := sq.Insert("loyalty_order").
-		Columns("order_id", "type", "status", "value", "user_id").
-		Values(orderId, type_, "NEW", value, userId).
+func (s *OrderStore) AddNewOrder(ctx context.Context, userId int64, orderId string) error {
+	stmt, args, _ := sq.Insert(`"order"`).
+		Columns("id", "status", "user_id").
+		Values(orderId, "NEW", userId).
 		PlaceholderFormat(sq.Dollar).ToSql()
 
 	_, err := s.db.Exec(ctx, stmt, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if ok := errors.As(err, &pgErr); ok {
+			if pgErr.Code == UniqueViolation {
+				return ErrOrderAlreadyExistsInDb
+			}
+		}
 		return err
 	}
 	return nil
 }
 
-func (s *OrderStore) GetOrdersByIdAndLogin(ctx context.Context, orderId string, login string, type_ string) ([]models.LoyaltyOrderModel, error) {
-	var entities []models.LoyaltyOrderModel
-	stmt, args, err := sq.Select("id", "order_id", "type", "status", "value", "user_id", "created_at", "updated_at").
-		From("loaylty_order lo").
-		InnerJoin(`"user" u lo on u."id"=lo.user_id`).
-		Where(sq.Eq{
-			"lo.order_id": orderId,
-			"u.login":     login,
-			"lo.type":     type_,
-		}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
+func (s *OrderStore) GetUserOrderById(ctx context.Context, orderId string, userId int64) (*models.LoyaltyOrderModel, error) {
+	var m models.LoyaltyOrderModel
+	stmt := `
+		select "id", "status", "created_at", "updated_at"
+		from "order" o
+		where o.user_id = $1 and o.id = $2;
+	`
 
+	row := s.db.QueryRow(ctx, stmt, userId, orderId)
+	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrdersNotFoundInDb
+		}
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, stmt, args...)
+
+	return &m, nil
+}
+
+func (s *OrderStore) GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel {
+	var m models.BalanceModel
+	stmt := `
+	SELECT
+		-- U.ID AS UID,
+		COALESCE(WD, 0) AS ACCRUED,
+		COALESCE(WD1, 0) AS WITHDRAWN,
+		CAST(COALESCE(WD, 0.0) + COALESCE(WD1, 0.0) as numeric(10, 4)) AS BALANCE
+	FROM
+		"user" U
+		LEFT JOIN (
+			SELECT
+				O.USER_ID AS UID,
+				SUM(L."value") AS WD
+			FROM
+				"order" O
+				INNER JOIN LOYALTY L ON O."id" = L.ORDER_ID
+			WHERE
+				O.STATUS = 'PROCESSED'
+				AND L."value" > 0
+			GROUP BY
+				O.USER_ID
+		) W ON U."id" = W.UID
+		LEFT JOIN (
+			SELECT
+				O.USER_ID AS UID,
+				SUM(L."value") AS WD1
+			FROM
+				"order" O
+				INNER JOIN LOYALTY L ON O."id" = L.ORDER_ID
+			WHERE
+				O.STATUS = 'PROCESSED'
+				AND L."value" < 0
+			GROUP BY
+				O.USER_ID
+		) W1 ON U."id" = W1.UID
+	WHERE
+		U.ID = $1;
+	`
+	s.db.QueryRow(ctx, stmt, userId).Scan(&m.Accrued, &m.Withdrawn, &m.Balance)
+	logger.Log.Debugf("user %s balance %v", userId, m)
+	return m
+}
+
+func (s *OrderStore) Withdraw(ctx context.Context, orderId string, userId int64, value float64) error {
+	insertOrderStmt := `
+		insert into "order"(id, user_id, status)
+		values ($1, $2, $3);
+	`
+
+	insertLoyaltyStmt := `
+		insert into loyalty(order_id, value)
+		values ($1, $2)
+	`
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		logger.Log.Debugf("error begintx withdraw: %e", err)
+
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, insertOrderStmt, orderId, userId, "PROCESSED")
+	if err != nil {
+		// tx.Rollback(ctx)
+		logger.Log.Debugf("error on exec insert order withdraw: %e", err)
+		return ErrOrderAlreadyExistsInDb
+	}
+	_, err = tx.Exec(ctx, insertLoyaltyStmt, orderId, -1*value)
+	if err != nil {
+		logger.Log.Debugf("error on exec insert loyalty withdraw: %e", err)
+		tx.Rollback(ctx)
+		return err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		logger.Log.Debugf("eror on commit withdraw: %e", err)
+		// tx.Rollback(ctx)
+		return err
+	}
+	return nil
+}
+
+func (s *OrderStore) UpdateOrdersStatus(ctx context.Context, processRecords ...models.AccrualResult) error {
+	statusMap := map[string]string{
+		"REGISTERED": "PROCESSING",
+		"PROCESSING": "PROCESSING",
+		"INVALID":    "INVALID",
+		"PROCESSED":  "PROCESSED",
+	}
+	stmtUpdOrder := `update "order" set status = $1 where id = $2`
+	stmtInsLyalty := `insert into loyalty (order_id, value) values($1, $2) `
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		logger.Log.Debug("erro on tx")
+		return err
+	}
+	defer tx.Rollback(ctx)
+	logger.Log.Debugf("Orderw to write in DB %v", len(processRecords))
+	// b := pgx.Batch{}
+	for _, inRec := range processRecords {
+		// orders, _ := s.GetOrdersById(ctx, inRec.OrderId)
+		if status, ok := statusMap[inRec.Status]; ok {
+			logger.Log.Debugf("New status: %s", status)
+			// b.Queue(stmtUpdOrder, status, inRecorder_id.OrderId)
+			// for _, o := range orders {
+			// if o.Status != inRec.Status {
+			tx.Exec(ctx, stmtUpdOrder, status, inRec.OrderId)
+			if inRec.Accrual != nil {
+				// b.Queue(stmtInsLyalty, inRec.OrderId, inRec.Accrual)
+				tx.Exec(ctx, stmtInsLyalty, inRec.OrderId, *inRec.Accrual)
+			}
+			// }
+
+			// }
+		}
+	}
+	// tx.SendBatch(ctx, &b)
+	err = tx.Commit(ctx)
+	if err != nil {
+		logger.Log.Debugf("err commint: %e", err)
+		tx.Rollback(ctx)
+		return err
+	}
+	return nil
+}
+
+func (s *OrderStore) GetOrdersToAccrualProcess(ctx context.Context) ([]models.OrderModel, error) {
+	var records = make([]models.OrderModel, 0, 10)
+	stmt := `
+		select id, user_id, status, created_at, updated_at 
+		from "order" o 
+		where o.status not in ('INVALID', 'PROCESSED')
+	`
+
+	rows, err := s.db.Query(ctx, stmt)
 	if err != nil {
 		return nil, err
 	}
 
 	for rows.Next() {
-		var m models.LoyaltyOrderModel
-		rows.Scan(&m.Id, &m.OrderId, &m.Type, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
-		entities = append(entities, m)
+		var m models.OrderModel
+		rows.Scan(&m.Id, &m.UserId, &m.Status, &m.CreateedAt, &m.UpdatedAt)
+		records = append(records, m)
 	}
-
-	return entities, nil
-}
-
-func (s *OrderStore) GetUserBalance(ctx context.Context, login string) models.BalanceModel {
-	var m models.BalanceModel
-	stmt := `
-		with orders as (
-			select value, user_id, type
-			from loyalty_order lo inner join "user" u on lo.user_id = u."id"
-			where u.login = $1 and status = 'PROCESSED'
-		)
-		select ac.val as accrued, w.val as withdrawal, (ac.val - w.val) as balance
-		from (select sum(value) as val  from orders where  type='ACCRUED' group by user_id)  ac,
-			 (select sum(value) as val from orders where type='WITHDRAWAL' group by user_id)  w
-	`
-
-	s.db.QueryRow(ctx, stmt, login).Scan(&m.Accrued, &m.Withdrawn, &m.Balance)
-	return m
-}
-
-func (s *OrderStore) Withdraw(ctx context.Context, orderId string, userId int64, value int64) error {
-	stmt := `
-		insert into loyalty_order(order_id, user_id, "type", status, value)
-		values ($1, $2, 'WITHDRAWAL', 'PROCESSED', $3)
-	`
-	_, err := s.db.Exec(ctx, stmt, orderId, userId, value)
-	if err != nil {
-		return err
-	}
-	return nil
+	return records, nil
 }
