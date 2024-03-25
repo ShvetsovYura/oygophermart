@@ -50,18 +50,18 @@ func (mr *MockOrderStorerMockRecorder) AddNewOrder(arg0, arg1, arg2, arg3, arg4 
 }
 
 // GetOrdersById mocks base method.
-func (m *MockOrderStorer) GetOrdersById(arg0 context.Context, arg1 string) ([]models.LoyaltyOrderModel, error) {
+func (m *MockOrderStorer) GetOrdersByID(arg0 context.Context, arg1 string) ([]models.LoyaltyOrderModel, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrdersById", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetOrdersByID", arg0, arg1)
 	ret0, _ := ret[0].([]models.LoyaltyOrderModel)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrdersById indicates an expected call of GetOrdersById.
-func (mr *MockOrderStorerMockRecorder) GetOrdersById(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockOrderStorerMockRecorder) GetOrdersByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrdersById", reflect.TypeOf((*MockOrderStorer)(nil).GetOrdersById), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrdersByID", reflect.TypeOf((*MockOrderStorer)(nil).GetOrdersByID), arg0, arg1)
 }
 
 // GetUserByLogin mocks base method.

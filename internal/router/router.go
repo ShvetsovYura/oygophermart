@@ -34,7 +34,7 @@ type UserWorker interface {
 type Tokener interface {
 	GenerateToken(id uint64) (string, error)
 	ValidateSign(token string) (bool, error)
-	ExtractUserId(token string) (uint64, error)
+	ExtractUserID(token string) (uint64, error)
 }
 
 type HTTPRouter struct {
@@ -61,7 +61,7 @@ func (wa *HTTPRouter) InitRouter() {
 	r := chi.NewRouter()
 	ms := []func(http.Handler) http.Handler{
 		middlewares.CheckAuthCookie(wa.tokenService),
-		middlewares.ExtractUserId(wa.tokenService),
+		middlewares.ExtractUserID(wa.tokenService),
 	}
 
 	r.Route("/api", func(r chi.Router) {
@@ -277,7 +277,7 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 	err = wa.orderService.Withdraw(r.Context(), userID, req.OrderId, float64(req.Sum))
 	if err != nil {
 		logger.Log.Debugf("err ubu : %e", err)
-		if errors.Is(err, store.ErrOrderAlreadyExistsInDb) {
+		if errors.Is(err, store.ErrOrderAlreadyExistsInDB) {
 			http.Error(w, "Order already exists", http.StatusUnprocessableEntity)
 		}
 		w.WriteHeader(http.StatusPaymentRequired)

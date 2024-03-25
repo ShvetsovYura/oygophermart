@@ -14,9 +14,9 @@ var ErrInsufficientFunds = errors.New("insufficient funds")
 
 type OrderStorer interface {
 	GetUserOrders(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error)
-	GetOrdersById(ctx context.Context, orderID string) ([]models.OrderModel, error)
+	GetOrdersByID(ctx context.Context, orderID string) ([]models.OrderModel, error)
 	AddNewOrder(ctx context.Context, userID int64, orderID string) error
-	GetUserOrderById(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error)
+	GetUserOrderByID(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error)
 	GetUserBalance(ctx context.Context, userID uint64) models.BalanceModel
 	Withdraw(ctx context.Context, orderID string, userID int64, value float64) error
 }
@@ -41,7 +41,7 @@ func NewOrderService(orderStore OrderStorer, userStore UserStorer) *OrderService
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, userID uint64, orderID string) error {
-	records, err := s.stores.orderStore.GetOrdersById(ctx, orderID)
+	records, err := s.stores.orderStore.GetOrdersByID(ctx, orderID)
 	if err != nil {
 		return err
 	}

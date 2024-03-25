@@ -38,7 +38,7 @@ func (s *HashService) getSign(src []byte) ([]byte, error) {
 	return sign, nil
 }
 
-func (s *HashService) ExtractUserId(token string) (uint64, error) {
+func (s *HashService) ExtractUserID(token string) (uint64, error) {
 	data, err := hex.DecodeString(token)
 	if err != nil {
 		return 0, err

@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrOrdersNotFoundInDb = errors.New("orders not found")
-var ErrOrderAlreadyExistsInDb = errors.New("order already exists")
+var ErrOrdersNotFoundInDB = errors.New("orders not found")
+var ErrOrderAlreadyExistsInDB = errors.New("order already exists")
 
 const (
 	UniqueViolation = "23505"
@@ -40,7 +40,7 @@ func (s *OrderStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *OrderStore) GetOrdersById(ctx context.Context, orderID string) ([]models.OrderModel, error) {
+func (s *OrderStore) GetOrdersByID(ctx context.Context, orderID string) ([]models.OrderModel, error) {
 	var entities = make([]models.OrderModel, 0)
 	stmt := `
 		select id, status, user_id, created_at, updated_at 
@@ -109,7 +109,7 @@ func (s *OrderStore) AddNewOrder(ctx context.Context, userID int64, orderID stri
 		var pgErr *pgconn.PgError
 		if ok := errors.As(err, &pgErr); ok {
 			if pgErr.Code == UniqueViolation {
-				return ErrOrderAlreadyExistsInDb
+				return ErrOrderAlreadyExistsInDB
 			}
 		}
 		return err
@@ -117,7 +117,7 @@ func (s *OrderStore) AddNewOrder(ctx context.Context, userID int64, orderID stri
 	return nil
 }
 
-func (s *OrderStore) GetUserOrderById(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error) {
+func (s *OrderStore) GetUserOrderByID(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error) {
 	var m models.LoyaltyOrderModel
 	stmt := `
 		select "id", "status", "created_at", "updated_at"
@@ -129,7 +129,7 @@ func (s *OrderStore) GetUserOrderById(ctx context.Context, orderID string, userI
 	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrOrdersNotFoundInDb
+			return nil, ErrOrdersNotFoundInDB
 		}
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (s *OrderStore) Withdraw(ctx context.Context, orderID string, userID int64,
 	if err != nil {
 		// tx.Rollback(ctx)
 		logger.Log.Debugf("error on exec insert order withdraw: %e", err)
-		return ErrOrderAlreadyExistsInDb
+		return ErrOrderAlreadyExistsInDB
 	}
 	_, err = tx.Exec(ctx, insertLoyaltyStmt, orderID, -1*value)
 	if err != nil {
@@ -238,7 +238,6 @@ func (s *OrderStore) UpdateOrdersStatus(ctx context.Context, processRecords ...m
 	logger.Log.Debugf("Orderw to write in DB %v", len(processRecords))
 	// b := pgx.Batch{}
 	for _, inRec := range processRecords {
-		// orders, _ := s.GetOrdersById(ctx, inRec.OrderId)
 		if status, ok := statusMap[inRec.Status]; ok {
 			logger.Log.Debugf("New status: %s", status)
 			// b.Queue(stmtUpdOrder, status, inRecorder_id.OrderId)
