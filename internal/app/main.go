@@ -9,11 +9,14 @@ import (
 	"github.com/ShvetsovYura/oygophermart/internal/options"
 	"github.com/ShvetsovYura/oygophermart/internal/store"
 	"github.com/ShvetsovYura/oygophermart/internal/webserver"
+	"github.com/ShvetsovYura/oygophermart/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Run(ctx context.Context, opts *options.AppOptions) error {
+	migrations.RunUpMigration(opts.DatabaseURI)
 	conn, err := pgxpool.New(ctx, opts.DatabaseURI)
+
 	if err != nil {
 		return err
 	}
