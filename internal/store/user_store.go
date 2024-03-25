@@ -35,7 +35,7 @@ func (s *UserStore) GetUserByLogin(ctx context.Context, serLogin string) (*model
 		ToSql()
 	row := s.db.QueryRow(ctx, stmt, args...)
 	var u models.UserModel
-	err := row.Scan(&u.Id, &u.Login, &u.PwdHash)
+	err := row.Scan(&u.ID, &u.Login, &u.PwdHash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

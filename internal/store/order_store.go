@@ -55,7 +55,7 @@ func (s *OrderStore) GetOrdersByID(ctx context.Context, orderID string) ([]model
 
 	for rows.Next() {
 		var m models.OrderModel
-		rows.Scan(&m.Id, &m.Status, &m.UserId, &m.CreateedAt, &m.UpdatedAt)
+		rows.Scan(&m.Id, &m.Status, &m.UserID, &m.CreateedAt, &m.UpdatedAt)
 		entities = append(entities, m)
 	}
 
@@ -91,7 +91,7 @@ func (s *OrderStore) GetUserOrders(ctx context.Context, userID uint64) ([]models
 
 	for rows.Next() {
 		var m models.OrderGroupedModel
-		rows.Scan(&m.Id, &m.Status, &m.UpdatedAt, &m.Accrual)
+		rows.Scan(&m.ID, &m.Status, &m.UpdatedAt, &m.Accrual)
 		entities = append(entities, m)
 	}
 
@@ -120,13 +120,20 @@ func (s *OrderStore) AddNewOrder(ctx context.Context, userID int64, orderID stri
 func (s *OrderStore) GetUserOrderByID(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error) {
 	var m models.LoyaltyOrderModel
 	stmt := `
-		select "id", "status", "created_at", "updated_at"
-		from "order" o
-		where o.user_id = $1 and o.id = $2;
+	SELECT
+		ID,
+		STATUS,
+		CREATED_AT,
+		UPDATED_AT
+	FROM
+		"order" O
+	WHERE
+		O.USER_ID = $1
+		AND O.ID = $2;
 	`
 
 	row := s.db.QueryRow(ctx, stmt, userID, orderID)
-	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
+	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserID, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrOrdersNotFoundInDB
@@ -278,7 +285,7 @@ func (s *OrderStore) GetOrdersToAccrualProcess(ctx context.Context) ([]models.Or
 
 	for rows.Next() {
 		var m models.OrderModel
-		rows.Scan(&m.Id, &m.UserId, &m.Status, &m.CreateedAt, &m.UpdatedAt)
+		rows.Scan(&m.Id, &m.UserID, &m.Status, &m.CreateedAt, &m.UpdatedAt)
 		records = append(records, m)
 	}
 	return records, nil

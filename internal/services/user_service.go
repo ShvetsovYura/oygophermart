@@ -47,7 +47,7 @@ func (u *UserServcie) CreateUser(ctx context.Context, login string, password str
 	if err != nil {
 		return 0, err
 	}
-	return m.Id, nil
+	return m.ID, nil
 }
 
 func (u *UserServcie) Login(ctx context.Context, login string, password string) (int64, error) {
@@ -63,5 +63,5 @@ func (u *UserServcie) Login(ctx context.Context, login string, password string) 
 	if pwdHash != user.PwdHash {
 		return 0, ErrNotValidLoginOrPassword
 	}
-	return user.Id, nil
+	return user.ID, nil
 }

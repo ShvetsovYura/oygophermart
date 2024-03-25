@@ -47,7 +47,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID uint64, orderID s
 	}
 	if len(records) > 0 {
 		for _, r := range records {
-			if r.UserId == userID {
+			if r.UserID == userID {
 				return ErrOrderAlreadyAddedByUser
 			}
 		}

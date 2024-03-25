@@ -302,7 +302,7 @@ func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
 	var respOrders = make([]models.UserWithdrawalsResp, 0, len(orders))
 	for _, o := range orders {
 		respOrders = append(respOrders, models.UserWithdrawalsResp{
-			OrderId:     o.Id,
+			OrderId:     o.ID,
 			Sum:         math.Abs(*o.Accrual),
 			ProcessedAt: o.UpdatedAt,
 		})

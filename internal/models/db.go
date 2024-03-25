@@ -4,7 +4,7 @@ import "time"
 
 type OrderModel struct {
 	Id         string
-	UserId     uint64
+	UserID     uint64
 	Status     string
 	CreateedAt time.Time
 	UpdatedAt  time.Time
@@ -12,24 +12,24 @@ type OrderModel struct {
 
 type LoyaltyOrderModel struct {
 	Id        int
-	OrderId   string
+	OrderID   string
 	Status    string
 	Value     int64
 	Type      string
-	UserId    int64
+	UserID    int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type OrderGroupedModel struct {
-	Id        string    `json:"number"`
+	ID        string    `json:"number"`
 	Status    string    `json:"status"`
 	Accrual   *float64  `json:"accrual,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type UserModel struct {
-	Id      int64
+	ID      int64
 	Login   string
 	PwdHash string
 }
