@@ -12,7 +12,7 @@ var ErrNotValidLoginOrPassword = errors.New("not valid login/password")
 var ErrUserNotFound = errors.New("user not found")
 
 type UserStorer interface {
-	AddUser(ctx context.Context, login string, pwd_hash string) error
+	AddUser(ctx context.Context, login string, pwdHash string) error
 	GetUserByLogin(ctx context.Context, userLogin string) (*models.UserModel, error)
 }
 

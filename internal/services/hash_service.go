@@ -50,14 +50,14 @@ func (s *HashService) ExtractUserId(token string) (uint64, error) {
 }
 
 func (s *HashService) GenerateToken(id uint64) (string, error) {
-	var userId = make([]byte, 8)
+	var userID = make([]byte, 8)
 
-	binary.BigEndian.PutUint64(userId, id)
-	sign, err := s.getSign(userId)
+	binary.BigEndian.PutUint64(userID, id)
+	sign, err := s.getSign(userID)
 	if err != nil {
 		return "", err
 	}
-	token := append(userId, sign...)
+	token := append(userID, sign...)
 	return hex.EncodeToString(token), nil
 }
 

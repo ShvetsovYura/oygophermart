@@ -40,7 +40,7 @@ func (s *OrderStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]models.OrderModel, error) {
+func (s *OrderStore) GetOrdersById(ctx context.Context, orderID string) ([]models.OrderModel, error) {
 	var entities = make([]models.OrderModel, 0)
 	stmt := `
 		select id, status, user_id, created_at, updated_at 
@@ -48,7 +48,7 @@ func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]model
 		where id = $1
 	`
 
-	rows, err := s.db.Query(ctx, stmt, orderId)
+	rows, err := s.db.Query(ctx, stmt, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (s *OrderStore) GetOrdersById(ctx context.Context, orderId string) ([]model
 	return entities, nil
 }
 
-func (s *OrderStore) GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
+func (s *OrderStore) GetUserOrders(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error) {
 	var entities []models.OrderGroupedModel
 
 	stmt := `
@@ -84,7 +84,7 @@ func (s *OrderStore) GetUserOrders(ctx context.Context, userId uint64) ([]models
 		UPDATED_AT ASC;
 	`
 
-	rows, err := s.db.Query(ctx, stmt, userId)
+	rows, err := s.db.Query(ctx, stmt, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +98,10 @@ func (s *OrderStore) GetUserOrders(ctx context.Context, userId uint64) ([]models
 	return entities, nil
 }
 
-func (s *OrderStore) AddNewOrder(ctx context.Context, userId int64, orderId string) error {
+func (s *OrderStore) AddNewOrder(ctx context.Context, userID int64, orderID string) error {
 	stmt, args, _ := sq.Insert(`"order"`).
 		Columns("id", "status", "user_id").
-		Values(orderId, "NEW", userId).
+		Values(orderID, "NEW", userID).
 		PlaceholderFormat(sq.Dollar).ToSql()
 
 	_, err := s.db.Exec(ctx, stmt, args...)
@@ -117,7 +117,7 @@ func (s *OrderStore) AddNewOrder(ctx context.Context, userId int64, orderId stri
 	return nil
 }
 
-func (s *OrderStore) GetUserOrderById(ctx context.Context, orderId string, userId int64) (*models.LoyaltyOrderModel, error) {
+func (s *OrderStore) GetUserOrderById(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error) {
 	var m models.LoyaltyOrderModel
 	stmt := `
 		select "id", "status", "created_at", "updated_at"
@@ -125,7 +125,7 @@ func (s *OrderStore) GetUserOrderById(ctx context.Context, orderId string, userI
 		where o.user_id = $1 and o.id = $2;
 	`
 
-	row := s.db.QueryRow(ctx, stmt, userId, orderId)
+	row := s.db.QueryRow(ctx, stmt, userID, orderID)
 	err := row.Scan(&m.Id, &m.Status, &m.Value, &m.UserId, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -137,7 +137,7 @@ func (s *OrderStore) GetUserOrderById(ctx context.Context, orderId string, userI
 	return &m, nil
 }
 
-func (s *OrderStore) GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel {
+func (s *OrderStore) GetUserBalance(ctx context.Context, userID uint64) models.BalanceModel {
 	var m models.BalanceModel
 	stmt := `
 	SELECT
@@ -176,12 +176,12 @@ func (s *OrderStore) GetUserBalance(ctx context.Context, userId uint64) models.B
 	WHERE
 		U.ID = $1;
 	`
-	s.db.QueryRow(ctx, stmt, userId).Scan(&m.Accrued, &m.Withdrawn, &m.Balance)
-	logger.Log.Debugf("user %s balance %v", userId, m)
+	s.db.QueryRow(ctx, stmt, userID).Scan(&m.Accrued, &m.Withdrawn, &m.Balance)
+	logger.Log.Debugf("user %s balance %v", userID, m)
 	return m
 }
 
-func (s *OrderStore) Withdraw(ctx context.Context, orderId string, userId int64, value float64) error {
+func (s *OrderStore) Withdraw(ctx context.Context, orderID string, userID int64, value float64) error {
 	insertOrderStmt := `
 		insert into "order"(id, user_id, status)
 		values ($1, $2, $3);
@@ -198,13 +198,13 @@ func (s *OrderStore) Withdraw(ctx context.Context, orderId string, userId int64,
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, insertOrderStmt, orderId, userId, "PROCESSED")
+	_, err = tx.Exec(ctx, insertOrderStmt, orderID, userID, "PROCESSED")
 	if err != nil {
 		// tx.Rollback(ctx)
 		logger.Log.Debugf("error on exec insert order withdraw: %e", err)
 		return ErrOrderAlreadyExistsInDb
 	}
-	_, err = tx.Exec(ctx, insertLoyaltyStmt, orderId, -1*value)
+	_, err = tx.Exec(ctx, insertLoyaltyStmt, orderID, -1*value)
 	if err != nil {
 		logger.Log.Debugf("error on exec insert loyalty withdraw: %e", err)
 		tx.Rollback(ctx)

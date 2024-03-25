@@ -18,9 +18,9 @@ func NewUserStore(db *pgxpool.Pool) (*UserStore, error) {
 	return &UserStore{db: db}, nil
 }
 
-func (s *UserStore) AddUser(ctx context.Context, login string, pwd_hash string) error {
+func (s *UserStore) AddUser(ctx context.Context, login string, pwdHash string) error {
 	stmt := `insert into "user"(login, pwd_hash) values($1, $2);`
-	_, err := s.db.Exec(ctx, stmt, login, pwd_hash)
+	_, err := s.db.Exec(ctx, stmt, login, pwdHash)
 	if err != nil {
 		return err
 	}

@@ -46,10 +46,9 @@ func (a *AccrualAgent) Start(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (a *AccrualAgent) getAccrualStatusRequest(orderId string) (*models.AccrualResult, error) {
-	// logger.Log.Debugf("e2e orderId: %s", orderId)
+func (a *AccrualAgent) getAccrualStatusRequest(orderID string) (*models.AccrualResult, error) {
 	s := sling.New().Base(a.accrualLink).Set("User-Agent", "OyGopherMart client")
-	r, err := s.New().Get("/api/orders/" + orderId).Request()
+	r, err := s.New().Get("/api/orders/" + orderID).Request()
 
 	if err != nil {
 		logger.Log.Debug("error on create request")

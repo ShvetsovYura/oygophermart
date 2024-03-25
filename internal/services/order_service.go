@@ -13,12 +13,12 @@ var ErrOrderAlreadyAddedByAnotherUser = errors.New("the order has already been a
 var ErrInsufficientFunds = errors.New("insufficient funds")
 
 type OrderStorer interface {
-	GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
-	GetOrdersById(ctx context.Context, orderId string) ([]models.OrderModel, error)
-	AddNewOrder(ctx context.Context, userId int64, orderId string) error
-	GetUserOrderById(ctx context.Context, orderId string, userId int64) (*models.LoyaltyOrderModel, error)
-	GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel
-	Withdraw(ctx context.Context, orderId string, userId int64, value float64) error
+	GetUserOrders(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error)
+	GetOrdersById(ctx context.Context, orderID string) ([]models.OrderModel, error)
+	AddNewOrder(ctx context.Context, userID int64, orderID string) error
+	GetUserOrderById(ctx context.Context, orderID string, userID int64) (*models.LoyaltyOrderModel, error)
+	GetUserBalance(ctx context.Context, userID uint64) models.BalanceModel
+	Withdraw(ctx context.Context, orderID string, userID int64, value float64) error
 }
 
 type stores struct {
@@ -40,21 +40,21 @@ func NewOrderService(orderStore OrderStorer, userStore UserStorer) *OrderService
 	return service
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, userId uint64, orderId string) error {
-	records, err := s.stores.orderStore.GetOrdersById(ctx, orderId)
+func (s *OrderService) CreateOrder(ctx context.Context, userID uint64, orderID string) error {
+	records, err := s.stores.orderStore.GetOrdersById(ctx, orderID)
 	if err != nil {
 		return err
 	}
 	if len(records) > 0 {
 		for _, r := range records {
-			if r.UserId == userId {
+			if r.UserId == userID {
 				return ErrOrderAlreadyAddedByUser
 			}
 		}
 		return ErrOrderAlreadyAddedByAnotherUser
 	}
 
-	err = s.stores.orderStore.AddNewOrder(ctx, int64(userId), orderId)
+	err = s.stores.orderStore.AddNewOrder(ctx, int64(userID), orderID)
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, userId uint64, orderId s
 
 }
 
-func (s *OrderService) GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
-	records, err := s.stores.orderStore.GetUserOrders(ctx, userId)
+func (s *OrderService) GetUserOrders(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error) {
+	records, err := s.stores.orderStore.GetUserOrders(ctx, userID)
 	var result = make([]models.OrderGroupedModel, 0, len(records))
 
 	if err != nil {
@@ -81,20 +81,20 @@ func (s *OrderService) GetUserOrders(ctx context.Context, userId uint64) ([]mode
 	return result, nil
 }
 
-func (s *OrderService) GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel {
-	record := s.stores.orderStore.GetUserBalance(ctx, userId)
+func (s *OrderService) GetUserBalance(ctx context.Context, userID uint64) models.BalanceModel {
+	record := s.stores.orderStore.GetUserBalance(ctx, userID)
 	return record
 }
 
-func (s *OrderService) Withdraw(ctx context.Context, userId uint64, orderId string, value float64) error {
-	balance := s.stores.orderStore.GetUserBalance(ctx, userId)
-	logger.Log.Debugf("withdraw balance: user %s %s %v", userId, orderId, balance)
+func (s *OrderService) Withdraw(ctx context.Context, userID uint64, orderID string, value float64) error {
+	balance := s.stores.orderStore.GetUserBalance(ctx, userID)
+	logger.Log.Debugf("withdraw balance: user %s %s %v", userID, orderID, balance)
 	if (balance.Balance - value) < 0 {
 		logger.Log.Debug("User not funds")
 		return ErrInsufficientFunds
 	}
 
-	err := s.stores.orderStore.Withdraw(ctx, orderId, int64(userId), value)
+	err := s.stores.orderStore.Withdraw(ctx, orderID, int64(userID), value)
 	if err != nil {
 		logger.Log.Debugf("err on withdrsw %e", err)
 		return err
@@ -104,10 +104,10 @@ func (s *OrderService) Withdraw(ctx context.Context, userId uint64, orderId stri
 
 }
 
-func (s *OrderService) UserWithdrawals(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error) {
+func (s *OrderService) UserWithdrawals(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error) {
 	status := "PROCESSED"
 	var result = make([]models.OrderGroupedModel, 0)
-	orders, err := s.stores.orderStore.GetUserOrders(ctx, userId)
+	orders, err := s.stores.orderStore.GetUserOrders(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

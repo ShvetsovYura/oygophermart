@@ -19,11 +19,11 @@ import (
 )
 
 type OrderWorker interface {
-	CreateOrder(ctx context.Context, userId uint64, orderId string) error
-	GetUserBalance(ctx context.Context, userId uint64) models.BalanceModel
-	Withdraw(ctx context.Context, userId uint64, orderId string, value float64) error
-	UserWithdrawals(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
-	GetUserOrders(ctx context.Context, userId uint64) ([]models.OrderGroupedModel, error)
+	CreateOrder(ctx context.Context, userID uint64, orderID string) error
+	GetUserBalance(ctx context.Context, userID uint64) models.BalanceModel
+	Withdraw(ctx context.Context, userID uint64, orderID string, value float64) error
+	UserWithdrawals(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error)
+	GetUserOrders(ctx context.Context, userID uint64) ([]models.OrderGroupedModel, error)
 }
 
 type UserWorker interface {
@@ -159,7 +159,7 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	userId := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value("uid").(uint64)
 
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "text/plain" {
@@ -172,8 +172,8 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 	defer r.Body.Close()
-	orderId := string(body)
-	isValid, err := utils.CheckLuhnFromStr(orderId)
+	orderID := string(body)
+	isValid, err := utils.CheckLuhnFromStr(orderID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -183,7 +183,7 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = wa.orderService.CreateOrder(r.Context(), userId, orderId)
+	err = wa.orderService.CreateOrder(r.Context(), userID, orderID)
 	if err != nil {
 		logger.Log.Debugf("Error on create order, %v", err)
 		if errors.Is(err, services.ErrOrderAlreadyAddedByUser) {
@@ -202,9 +202,9 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
-	userId := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value("uid").(uint64)
 	w.Header().Add("Content-Type", "application/json")
-	orders, err := wa.orderService.GetUserOrders(r.Context(), userId)
+	orders, err := wa.orderService.GetUserOrders(r.Context(), userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -224,10 +224,10 @@ func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
-	userId := r.Context().Value("uid")
+	userID := r.Context().Value("uid")
 	w.Header().Add("Content-Type", "application/json")
 
-	balance := wa.orderService.GetUserBalance(r.Context(), userId.(uint64))
+	balance := wa.orderService.GetUserBalance(r.Context(), userID.(uint64))
 	balanceResp := models.BalanceResp{
 		Current:   balance.Balance,
 		Withdrawn: math.Abs(balance.Withdrawn),
@@ -247,7 +247,7 @@ func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
-	userId := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value("uid").(uint64)
 	var req models.WithdrawReq
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -274,7 +274,7 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
-	err = wa.orderService.Withdraw(r.Context(), userId, req.OrderId, float64(req.Sum))
+	err = wa.orderService.Withdraw(r.Context(), userID, req.OrderId, float64(req.Sum))
 	if err != nil {
 		logger.Log.Debugf("err ubu : %e", err)
 		if errors.Is(err, store.ErrOrderAlreadyExistsInDb) {
@@ -287,9 +287,9 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
-	userId := r.Context().Value("uid").(uint64)
+	userID := r.Context().Value("uid").(uint64)
 	w.Header().Add("Content-Type", "application/json")
-	orders, err := wa.orderService.UserWithdrawals(r.Context(), userId)
+	orders, err := wa.orderService.UserWithdrawals(r.Context(), userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -15,13 +15,13 @@ func ExtractUserId(ex Extractor) func(next http.Handler) http.Handler {
 			// TODO: Убрать в мидлварю
 			c, _ := r.Cookie("token")
 			if c != nil {
-				userId, err := ex.ExtractUserId(c.Value)
+				userID, err := ex.ExtractUserId(c.Value)
 
 				if err != nil {
 					http.Error(w, "Unable get user", http.StatusInternalServerError)
 					return
 				}
-				ctx := context.WithValue(r.Context(), "uid", userId)
+				ctx := context.WithValue(r.Context(), "uid", userID)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			} else {
 				http.Error(w, "Unable get cookies", http.StatusBadRequest)
