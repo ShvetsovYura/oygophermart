@@ -3,12 +3,12 @@ package models
 import "time"
 
 type BalanceResp struct {
-	Current   float32 `json:"current"`
-	Withdrawn float32 `json:"withdrawn"`
+	Current   float64 `json:"current"`
+	Withdrawn float64 `json:"withdrawn"`
 }
 
 type UserWithdrawalsResp struct {
-	OrderId     string    `json:"order"`
-	Sum         int64     `json:"sum"`
+	OrderID     string    `json:"order"`
+	Sum         float64   `json:"sum"`
 	ProcessedAt time.Time `json:"processed_at"`
 }
