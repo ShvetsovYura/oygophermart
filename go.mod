@@ -1,6 +1,6 @@
 module github.com/ShvetsovYura/oygophermart
 
-go 1.22.0
+go 1.21.8
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
