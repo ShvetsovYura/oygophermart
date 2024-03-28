@@ -66,7 +66,6 @@ func (s *HashService) ValidateSign(token string) (bool, error) {
 	data, _ := hex.DecodeString(token)
 	idPart := data[:8]
 	signPart := data[8:]
-	// id := binary.BigEndian.Uint64(idPart)
 
 	sign, err := s.getSign(idPart)
 	if err != nil {
