@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/ShvetsovYura/oygophermart/internal/models"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,21 +26,27 @@ func (s *UserStore) AddUser(ctx context.Context, login string, pwdHash string) e
 	return nil
 }
 
-func (s *UserStore) GetUserByLogin(ctx context.Context, serLogin string) (*models.UserModel, error) {
-	stmt, args, _ := sq.Select(`"id"`, "login", "pwd_hash").
-		From(`"user"`).
-		Where(sq.Eq{"login": serLogin}).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-	row := s.db.QueryRow(ctx, stmt, args...)
+func (s *UserStore) GetUserByLogin(ctx context.Context, userLogin string) (*models.UserModel, error) {
+	stmt := `
+		SELECT
+			"id",
+			login,
+			pwd_hash
+		FROM
+			"user"
+		WHERE
+			login = $1
+	`
+
+	row := s.db.QueryRow(ctx, stmt, userLogin)
+
 	var u models.UserModel
 	err := row.Scan(&u.ID, &u.Login, &u.PwdHash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
-		} else {
-			return nil, err
 		}
+		return nil, err
 	}
 	return &u, nil
 

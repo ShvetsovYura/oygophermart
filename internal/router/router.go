@@ -115,8 +115,6 @@ func (wa *HTTPRouter) userRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
-	// TODO:  Добавить проверку content-type
-
 	var user models.UserReq
 
 	body, err := io.ReadAll(r.Body)
@@ -159,12 +157,15 @@ func (wa *HTTPRouter) userLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(models.UIDKey).(uint64)
+	userID, ok := r.Context().Value(models.UIDKey).(uint64)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "text/plain" {
-		w.WriteHeader(http.StatusTeapot)
-		logger.Log.Debugf("bad content-type: %s", contentType)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -202,7 +203,12 @@ func (wa *HTTPRouter) userLoadOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(models.UIDKey).(uint64)
+	userID, ok := r.Context().Value(models.UIDKey).(uint64)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Add("Content-Type", "application/json")
 	orders, err := wa.orderService.GetUserOrders(r.Context(), userID)
 	if err != nil {
@@ -220,11 +226,15 @@ func (wa *HTTPRouter) userListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(response)
-	// w.WriteHeader(http.StatusOK)
 }
 
 func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(models.UIDKey).(uint64)
+	userID, ok := r.Context().Value(models.UIDKey).(uint64)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Add("Content-Type", "application/json")
 
 	balance := wa.orderService.GetUserBalance(r.Context(), userID)
@@ -247,7 +257,11 @@ func (wa *HTTPRouter) userBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(models.UIDKey).(uint64)
+	userID, ok := r.Context().Value(models.UIDKey).(uint64)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	var req models.WithdrawReq
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -276,7 +290,6 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 	}
 	err = wa.orderService.Withdraw(r.Context(), userID, req.OrderID, float64(req.Sum))
 	if err != nil {
-		logger.Log.Debugf("err ubu : %e", err)
 		if errors.Is(err, store.ErrOrderAlreadyExistsInDB) {
 			http.Error(w, "Order already exists", http.StatusUnprocessableEntity)
 		}
@@ -287,7 +300,11 @@ func (wa *HTTPRouter) userWithdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (wa *HTTPRouter) userWithdrawals(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(models.UIDKey).(uint64)
+	userID, ok := r.Context().Value(models.UIDKey).(uint64)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	w.Header().Add("Content-Type", "application/json")
 	orders, err := wa.orderService.UserWithdrawals(r.Context(), userID)
 	if err != nil {

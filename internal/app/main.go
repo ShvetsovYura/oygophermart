@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
 	accrualagent "github.com/ShvetsovYura/oygophermart/internal/accrual_agent"
 	"github.com/ShvetsovYura/oygophermart/internal/options"
@@ -20,7 +19,7 @@ func Run(ctx context.Context, opts *options.AppOptions) error {
 	if err != nil {
 		return err
 	}
-	ws, err := webserver.NewWebServer(ctx, conn, opts)
+	ws, err := webserver.NewWebServer(conn, opts)
 	if err != nil {
 		fmt.Printf("%e", err)
 		return err
@@ -30,7 +29,7 @@ func Run(ctx context.Context, opts *options.AppOptions) error {
 	if err != nil {
 		return err
 	}
-	a := accrualagent.NewAccrualAgent(opts.AccrualSystemAddr, orderStore, 5, 1*time.Second)
+	a := accrualagent.NewAccrualAgent(opts.AccrualSystemAddr, orderStore, 1)
 	go a.Start(context)
 	go ws.Start()
 	<-ctx.Done()

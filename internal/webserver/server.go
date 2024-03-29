@@ -1,7 +1,6 @@
 package webserver
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/ShvetsovYura/oygophermart/internal/logger"
@@ -17,7 +16,7 @@ type WebServer struct {
 	options *options.AppOptions
 }
 
-func NewWebServer(ctx context.Context, dbConn *pgxpool.Pool, opt *options.AppOptions) (*WebServer, error) {
+func NewWebServer(dbConn *pgxpool.Pool, opt *options.AppOptions) (*WebServer, error) {
 	orderStore, err := store.NewOrderStore(dbConn)
 	if err != nil {
 		return nil, err

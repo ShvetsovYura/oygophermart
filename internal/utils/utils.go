@@ -37,7 +37,7 @@ func CheckLuhn(code []uint8) bool {
 		if i%2 == parity {
 			d1 = d * 2
 			if d1 > 9 {
-				d1 = d1 - 9
+				d1 -= 9
 			}
 
 		} else {
