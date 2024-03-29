@@ -184,7 +184,7 @@ func (s *OrderStore) GetUserBalance(ctx context.Context, userID uint64) models.B
 		U.ID = $1;
 	`
 	s.db.QueryRow(ctx, stmt, userID).Scan(&m.Accrued, &m.Withdrawn, &m.Balance)
-	logger.Log.Debugf("user %s balance %v", userID, m)
+	logger.Log.Debugf("user %d balance %v", userID, m)
 	return m
 }
 
@@ -207,7 +207,6 @@ func (s *OrderStore) Withdraw(ctx context.Context, orderID string, userID int64,
 	defer tx.Rollback(ctx)
 	_, err = tx.Exec(ctx, insertOrderStmt, orderID, userID, "PROCESSED")
 	if err != nil {
-		// tx.Rollback(ctx)
 		logger.Log.Debugf("error on exec insert order withdraw: %e", err)
 		return ErrOrderAlreadyExistsInDB
 	}
@@ -221,7 +220,6 @@ func (s *OrderStore) Withdraw(ctx context.Context, orderID string, userID int64,
 	err = tx.Commit(ctx)
 	if err != nil {
 		logger.Log.Debugf("eror on commit withdraw: %e", err)
-		// tx.Rollback(ctx)
 		return err
 	}
 	return nil
@@ -238,29 +236,17 @@ func (s *OrderStore) UpdateOrdersStatus(ctx context.Context, processRecords ...m
 	stmtInsLyalty := `insert into loyalty (order_id, value) values($1, $2) `
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		logger.Log.Debug("erro on tx")
 		return err
 	}
 	defer tx.Rollback(ctx)
-	logger.Log.Debugf("Orderw to write in DB %v", len(processRecords))
-	// b := pgx.Batch{}
 	for _, inRec := range processRecords {
 		if status, ok := statusMap[inRec.Status]; ok {
-			logger.Log.Debugf("New status: %s", status)
-			// b.Queue(stmtUpdOrder, status, inRecorder_id.OrderId)
-			// for _, o := range orders {
-			// if o.Status != inRec.Status {
 			tx.Exec(ctx, stmtUpdOrder, status, inRec.OrderID)
 			if inRec.Accrual != nil {
-				// b.Queue(stmtInsLyalty, inRec.OrderId, inRec.Accrual)
 				tx.Exec(ctx, stmtInsLyalty, inRec.OrderID, *inRec.Accrual)
 			}
-			// }
-
-			// }
 		}
 	}
-	// tx.SendBatch(ctx, &b)
 	err = tx.Commit(ctx)
 	if err != nil {
 		logger.Log.Debugf("err commint: %e", err)
@@ -285,7 +271,10 @@ func (s *OrderStore) GetOrdersToAccrualProcess(ctx context.Context) ([]models.Or
 
 	for rows.Next() {
 		var m models.OrderModel
-		rows.Scan(&m.ID, &m.UserID, &m.Status, &m.CreateedAt, &m.UpdatedAt)
+		err = rows.Scan(&m.ID, &m.UserID, &m.Status, &m.CreateedAt, &m.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, m)
 	}
 	return records, nil

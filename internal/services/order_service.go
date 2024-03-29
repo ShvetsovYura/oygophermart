@@ -72,10 +72,8 @@ func (s *OrderService) GetUserOrders(ctx context.Context, userID uint64) ([]mode
 	for _, r := range records {
 		if r.Accrual == nil {
 			result = append(result, r)
-		} else {
-			if *r.Accrual >= 0.0 {
-				result = append(result, r)
-			}
+		} else if *r.Accrual >= 0.0 {
+			result = append(result, r)
 		}
 	}
 	return result, nil
@@ -88,7 +86,7 @@ func (s *OrderService) GetUserBalance(ctx context.Context, userID uint64) models
 
 func (s *OrderService) Withdraw(ctx context.Context, userID uint64, orderID string, value float64) error {
 	balance := s.stores.orderStore.GetUserBalance(ctx, userID)
-	logger.Log.Debugf("withdraw balance: user %s %s %v", userID, orderID, balance)
+	logger.Log.Debugf("withdraw balance: user %d %d %v", userID, orderID, balance)
 	if (balance.Balance - value) < 0 {
 		logger.Log.Debug("User not funds")
 		return ErrInsufficientFunds

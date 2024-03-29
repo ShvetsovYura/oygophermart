@@ -23,6 +23,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
 	defer stop()
 
-	app.Run(ctx, &opt)
+	err = app.Run(ctx, &opt)
+	if err != nil {
+		logger.Log.Fatalf("Error on run: %e", err)
+	}
 	<-ctx.Done()
 }

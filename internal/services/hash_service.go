@@ -31,11 +31,11 @@ func (s *HashService) GenerateRnd(size int) ([]byte, error) {
 	return b, nil
 }
 
-func (s *HashService) getSign(src []byte) ([]byte, error) {
+func (s *HashService) getSign(src []byte) []byte {
 	h := hmac.New(sha256.New, s.key)
 	h.Write(src)
 	sign := h.Sum(nil)
-	return sign, nil
+	return sign
 }
 
 func (s *HashService) ExtractUserID(token string) (uint64, error) {
@@ -53,10 +53,7 @@ func (s *HashService) GenerateToken(id uint64) (string, error) {
 	var userID = make([]byte, 8)
 
 	binary.BigEndian.PutUint64(userID, id)
-	sign, err := s.getSign(userID)
-	if err != nil {
-		return "", err
-	}
+	sign := s.getSign(userID)
 	token := append(userID, sign...)
 	return hex.EncodeToString(token), nil
 }
@@ -64,13 +61,9 @@ func (s *HashService) GenerateToken(id uint64) (string, error) {
 func (s *HashService) ValidateSign(token string) (bool, error) {
 
 	data, _ := hex.DecodeString(token)
-	idPart := data[:8]
+	userIDPart := data[:8]
 	signPart := data[8:]
-
-	sign, err := s.getSign(idPart)
-	if err != nil {
-		return false, err
-	}
+	sign := s.getSign(userIDPart)
 
 	return hmac.Equal(sign, signPart), nil
 }

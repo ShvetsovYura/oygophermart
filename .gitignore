@@ -24,3 +24,4 @@ vendor/
 .env
 t.sh
 .gitignore
+internal/middlewares/check_content_type_middleware.go
