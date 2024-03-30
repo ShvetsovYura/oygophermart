@@ -21,3 +21,7 @@ vendor/
 # IDEs directories
 .idea
 .vscode
+.env
+t.sh
+.gitignore
+internal/middlewares/check_content_type_middleware.go
