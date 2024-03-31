@@ -21,13 +21,6 @@ type LoyaltyOrderModel struct {
 	UpdatedAt time.Time
 }
 
-type OrderGroupedModel struct {
-	ID        string    `json:"number"`
-	Status    string    `json:"status"`
-	Accrual   *float64  `json:"accrual,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 type UserModel struct {
 	ID      int64
 	Login   string
